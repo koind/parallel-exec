@@ -5,28 +5,45 @@ import (
 	"sync"
 )
 
-func Execute(funcs []func() error, countParallelExec int, errCount int) []interface{} {
+func Execute(funcs []func() error, countParallelExec int, errCount int) {
 	runtime.GOMAXPROCS(countParallelExec)
+
 	var wg sync.WaitGroup
-	funcErrors := make([]interface{}, 0, errCount)
-	errCounter := 0
+	errCh := make(chan error)
+	stop := make(chan struct{})
 
 	for _, fun := range funcs {
 		wg.Add(1)
-		go func(func() error) {
-			defer func() {
-				if r := recover(); r != nil {
-					funcErrors = append(funcErrors, r)
-					errCounter++
+		go func(fun func() error, ch chan<- error, stop <-chan struct{}) {
+			run := true
+			for run {
+				select {
+				case <-stop:
+					run = false
+					return
+				default:
+					err := fun()
+					if err != nil {
+						ch <- err
+					}
+					wg.Done()
+					run = false
 				}
-			}()
-			defer wg.Done()
-
-			fun()
-		}(fun)
+			}
+		}(fun, errCh, stop)
 	}
 
-	wg.Wait()
+	go func() {
+		i := 0
+		for err := range errCh {
+			if err != nil {
+				i++
+			}
 
-	return funcErrors
+			if errCount >= i {
+				stop <- struct{}{}
+			}
+		}
+	}()
+	wg.Wait()
 }
