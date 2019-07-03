@@ -41,7 +41,8 @@ func Execute(funcs []func() error, countParallelExec int, errCount int) {
 			}
 
 			if errCount >= i {
-				stop <- struct{}{}
+				close(stop)
+				return
 			}
 		}
 	}()
