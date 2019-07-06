@@ -29,6 +29,7 @@ func Execute(funcs []func() error, countParallelExec int, errCount int) {
 
 				mutex.RLock()
 				if couter >= errCount {
+					mutex.RUnlock()
 					return
 				}
 				mutex.RUnlock()
