@@ -1,50 +1,47 @@
 package parallel_exec
 
 import (
-	"runtime"
+	"fmt"
 	"sync"
 )
 
 func Execute(funcs []func() error, countParallelExec int, errCount int) {
-	runtime.GOMAXPROCS(countParallelExec)
-
 	var wg sync.WaitGroup
-	errCh := make(chan error)
-	stop := make(chan struct{})
+	chFuncs := make(chan []func() error, len(funcs))
+	chErrors := make(chan []error, errCount)
 
-	for _, fun := range funcs {
-		wg.Add(1)
-		go func(fun func() error, ch chan<- error, stop <-chan struct{}) {
-			run := true
-			for run {
-				select {
-				case <-stop:
-					run = false
-					return
-				default:
-					err := fun()
-					if err != nil {
-						ch <- err
-					}
-					wg.Done()
-					run = false
-				}
-			}
-		}(fun, errCh, stop)
+	for i := 0; i < countParallelExec; i++ {
+		chFuncs <- funcs
 	}
 
-	go func() {
-		i := 0
-		for err := range errCh {
-			if err != nil {
-				i++
+	for i := 0; i < countParallelExec; i++ {
+		wg.Add(1)
+		go func(wg *sync.WaitGroup, chFuncs <-chan []func() error, chErrors chan<- []error) {
+			defer wg.Done()
+			funcs := <-chFuncs
+			errors := make([]error, 0)
+			for _, fun := range funcs {
+				err := fun()
+				if err != nil {
+					errors = append(errors, err)
+				}
 			}
+			chErrors <- errors
+		}(&wg, chFuncs, chErrors)
+	}
 
-			if errCount >= i {
-				close(stop)
-				return
-			}
+	i := 0
+	for _, err := range <-chErrors {
+		fmt.Println(err)
+		if err != nil {
+			i++
 		}
-	}()
+
+		if errCount >= i {
+			close(chFuncs)
+			return
+		}
+	}
+
 	wg.Wait()
 }

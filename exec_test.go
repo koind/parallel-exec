@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"github.com/pkg/errors"
 	"testing"
-	"time"
 )
 
 func TestExecute(t *testing.T) {
@@ -14,9 +13,8 @@ func TestExecute(t *testing.T) {
 		return nil
 	}, func() error {
 		fmt.Println("func 2")
-		return errors.New("Hi this error")
+		return errors.New("Hi this error1")
 	}, func() error {
-		time.Sleep(6 * time.Second)
 		fmt.Println("func 3")
 		return nil
 	}, func() error {
