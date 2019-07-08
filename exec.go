@@ -13,25 +13,27 @@ func Execute(funcs []func() error, countParallelExec int, errCount int) {
 	for _, fun := range funcs {
 		chFunc <- fun
 	}
+	close(chFunc)
 
 	for i := 0; i < countParallelExec; i++ {
 		wg.Add(1)
 		go func(wg *sync.WaitGroup, mutex *sync.RWMutex, chFunc <-chan func() error, counter, errCount int) {
 			defer wg.Done()
-			fun := <-chFunc
-			err := fun()
-			if err != nil {
-				mutex.Lock()
-				counter++
-				mutex.Unlock()
-			}
+			for fun := range chFunc {
+				err := fun()
+				if err != nil {
+					mutex.Lock()
+					counter++
+					mutex.Unlock()
+				}
 
-			mutex.RLock()
-			if counter >= errCount {
+				mutex.RLock()
+				if counter >= errCount {
+					mutex.RUnlock()
+					return
+				}
 				mutex.RUnlock()
-				return
 			}
-			mutex.RUnlock()
 		}(&wg, &mutex, chFunc, counter, errCount)
 	}
 
