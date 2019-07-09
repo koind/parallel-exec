@@ -20,19 +20,19 @@ func Execute(funcs []func() error, countParallelExec int, errCount int) {
 		go func(wg *sync.WaitGroup, mutex *sync.RWMutex, chFunc <-chan func() error, counter, errCount int) {
 			defer wg.Done()
 			for fun := range chFunc {
-				err := fun()
-				if err != nil {
-					mutex.Lock()
-					counter++
-					mutex.Unlock()
-				}
-
 				mutex.RLock()
 				if counter >= errCount {
 					mutex.RUnlock()
 					return
 				}
 				mutex.RUnlock()
+
+				err := fun()
+				if err != nil {
+					mutex.Lock()
+					counter++
+					mutex.Unlock()
+				}
 			}
 		}(&wg, &mutex, chFunc, counter, errCount)
 	}
